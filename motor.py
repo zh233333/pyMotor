@@ -4,8 +4,6 @@ from threading import Event
 import time
 import datetime
 
-
-
 def remove_comment(string):
     return string.split(';')[0].strip()
 
@@ -27,9 +25,6 @@ def wait_for_movement_completion(ser, cleaned_line):
             if idle_counter > 10:
                 break
 
-
-
-
 class Motor:
     """
     Represents a motor controller.
@@ -40,9 +35,12 @@ class Motor:
         feed_rate (int, optional): The feed rate for motor movement. Defaults to 1000.
         verbose (bool, optional): Whether to print verbose output. Defaults to False.
         auto_position_save (bool, optional): Whether to automatically save motor positions. Defaults to True.
+        default_feed_rate (int, optional): The default feed rate for motor movement. Defaults to 100.
+        name (str, optional): The name of the motor. Defaults to "Motor".
+        id (int, optional): The ID of the motor. Defaults to 0.
     """
 
-    def __init__(self, port, baud_rate=115200, verbose=False, auto_position_save=True, default_feed_rate=100, name = "Motor", id = 0):
+    def __init__(self, port, baud_rate=115200, verbose=False, auto_position_save=True, default_feed_rate=100, name="Motor", id=0):
         self.name = name
         self.id = id
         self.port_path = port
@@ -52,8 +50,11 @@ class Motor:
         self.default_feed_rate = default_feed_rate
     
     def save_position(self):
+        """
+        Saves the current motor position to a file.
+        """
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        position_data = f"{timestamp}: {self.status()["Work position"]}\n"
+        position_data = f"{timestamp}: {self.status()['Work position']}\n"
         with open("motor_positions.txt", "a") as file:
             file.write(position_data)
 
@@ -68,6 +69,15 @@ class Motor:
         self.close()
 
     def send_command(self, command):
+        """
+        Sends a command to the motor controller.
+
+        Args:
+            command (str): The command to send.
+
+        Returns:
+            str: The response from the motor controller.
+        """
         self.ser.write(f"{command}\n".encode())
 
         if self.verbose:
@@ -80,19 +90,48 @@ class Motor:
         return grbl_response
 
     def set_spindle_speed(self, speed):
+        """
+        Sets the spindle speed of the motor.
+
+        Args:
+            speed (int): The spindle speed.
+
+        Returns:
+            str: The command to set the spindle speed.
+        """
         command = f'S{speed}'
         return command
 
     def home(self):
+        """
+        Sends a home command to the motor.
+
+        Returns:
+            str: The home command.
+        """
         command = '$H'
         return command
 
     def unlock(self):
+        """
+        Sends an unlock command to the motor.
+
+        Returns:
+            str: The unlock command.
+        """
         command = '$X'
         return command
 
     def status(self, verbose=True):
+        """
+        Gets the status of the motor.
 
+        Args:
+            verbose (bool, optional): Whether to print the status. Defaults to True.
+
+        Returns:
+            dict: The status of the motor.
+        """
         self.ser.write(str.encode('?\n'))
         grbl_raw = self.ser.readline().strip().decode('utf-8')                      
         grbl_response = grbl_raw[1:-1].split(",")
@@ -115,6 +154,12 @@ class Motor:
         return output
 
     def stream_gcode(self, gcode_path):
+        """
+        Streams G-code commands from a file to the motor.
+
+        Args:
+            gcode_path (str): The path to the G-code file.
+        """
         with open(gcode_path, "r") as file:
             for line in file:
                 cleaned_line = remove_comment(line)
@@ -123,10 +168,24 @@ class Motor:
                     self.send_command(cleaned_line)
 
     def close(self):
+        """
+        Closes the serial connection to the motor.
+        """
         if self.ser:
             self.ser.close()
 
-    def move(self, axis, pos, feed_rate = None):
+    def move(self, axis, pos, feed_rate=None):
+        """
+        Moves the motor to a specified position.
+
+        Args:
+            axis (str): The axis to move ('x', 'y', or 'z').
+            pos (float): The position to move to.
+            feed_rate (int, optional): The feed rate for the movement. Defaults to None.
+
+        Raises:
+            ValueError: If an invalid axis is provided.
+        """
         if axis in ['1', '2', '3']:
             mapping = {'1': 'X', '2': 'Y', '3': 'Z'}
             axis = mapping[axis]
@@ -143,69 +202,52 @@ class Motor:
         self.send_command(command)
 
     def restore_position(self, position_file_path="motor_positions.txt"):
+        """
+        Restores the motor position from a file.
+
+        Args:
+            position_file_path (str, optional): The path to the position file. Defaults to "motor_positions.txt".
+        """
         with open(position_file_path, "r") as file:
             lines = file.readlines()
             if lines:
                 last_line = lines[-1].strip()
             position = last_line.split(": ")[1]
-            # print(position)
             position = position.strip('[').strip(']').split(', ')
             position = [float(p) for p in position]
-            # print(position)
             self.set_work_position(position)
 
     def set_work_position(self, machine_position):
+        """
+        Sets the work position of the motor.
+
+        Args:
+            machine_position (list): The machine position to set.
+
+        Returns:
+            str: The command to set the work position.
+        """
         command = f'G92 X{machine_position[0]} Y{machine_position[1]} Z{machine_position[2]}'
         self.send_command(command)
         self.ser.readline()
 
     def get_work_position(self):
+        """
+        Gets the current work position of the motor.
+
+        Returns:
+            list: The work position.
+        """
         return self.status()["Work position"]
 
 class Motor_manager():
     def __init__(self, motor_list):
         self.motor_list = motor_list
 
-    
-
 if __name__ == "__main__":
-    with Motor(port = '/dev/tty.usbmodem11301') as motor:
+    with Motor(port='/dev/tty.usbmodem11301') as motor:
         motor.status()
         motor.move('x', 30)
         print(motor.get_work_position())
 
     print('EOF')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""
-
-    # Example commands
-
-        #motor.home()
-        #motor.set_feed_rate(1000)
-        # motor.set_spindle_speed(1000)
-
-
-        # Stream G-code file
-        # gcode_path = 'path/to/your/gcode_file.gcode'
-        # motor.stream_gcode(gcode_path)
-"""    
