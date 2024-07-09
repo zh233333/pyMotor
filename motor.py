@@ -49,17 +49,7 @@ class Motor:
         self.verbose = verbose
         self.default_feed_rate = default_feed_rate
     
-    def save_position(self):
-        """
-        Saves the current motor position to a file.
-        """
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        position_data = f"{timestamp}: {self.status()['Work position']}\n"
-        with open("motor_positions.txt", "a") as file:
-            file.write(position_data)
-
     def __enter__(self):
-        self.ser = serial.Serial(self.port_path, self.baud_rate)
         send_wake_up(self.ser)
         self.restore_position()
         return self
@@ -67,6 +57,46 @@ class Motor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.save_position()
         self.close()
+
+
+    def save_position(self):
+        """
+        Saves the current motor position to a file.
+        """
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        position_data = "{"
+        position_data += f"\"timestamp\": \"{timestamp}\", "
+        position_data += f"\"work_position\": {self.get_work_position()}, "
+        position_data += f"\"id\": {self.id}, "
+        position_data += "}" + "\n"
+        with open("motor_positions.txt", "a") as file:
+            file.write(position_data)
+
+    def restore_position(self, position_file_path="motor_positions.txt", verbose=False):
+        """
+        Restores the motor position from a file.
+
+        Args:
+            position_file_path (str, optional): The path to the position file. Defaults to "motor_positions.txt".
+        """
+
+
+        with open(position_file_path, "r") as file:
+            lines = file.readlines()
+            if lines:
+                last_line = lines[-1].strip()
+            dict_str = eval(last_line)
+            position = dict_str['work_position']
+            print(f"Restored position: {position}")
+            # position = last_line.split(": ")[1]
+            # position = position.strip('[').strip(']').split(', ')
+            # position = [float(p) for p in position]
+            # self.set_work_position(position)
+
+            if verbose:
+                print(f"Restored position: {position}")
+
+    
 
     def send_command(self, command):
         """
@@ -122,7 +152,14 @@ class Motor:
         command = '$X'
         return command
 
-    def status(self, verbose=True):
+    def print_status(self):
+        """
+        Prints the status of the motor.
+        """
+        self.status(verbose=True)
+
+
+    def status(self, verbose=False):
         """
         Gets the status of the motor.
 
@@ -138,7 +175,7 @@ class Motor:
         if self.verbose:
             print(f"GRBL Response: {grbl_response}")
         if (len(grbl_response) < 6):
-            return self.status()
+            return self.status(verbose = verbose)
         
         grbl_is_idle = grbl_response[0] == 'Idle'
         grbl_machine_position = ",".join(grbl_response[1:4]).split(":")[1].split(",")
@@ -198,24 +235,11 @@ class Motor:
         
         if feed_rate is None:
             feed_rate = self.default_feed_rate
+        
         command = f'G0 {axis}{pos} F{feed_rate}'
         self.send_command(command)
 
-    def restore_position(self, position_file_path="motor_positions.txt"):
-        """
-        Restores the motor position from a file.
 
-        Args:
-            position_file_path (str, optional): The path to the position file. Defaults to "motor_positions.txt".
-        """
-        with open(position_file_path, "r") as file:
-            lines = file.readlines()
-            if lines:
-                last_line = lines[-1].strip()
-            position = last_line.split(": ")[1]
-            position = position.strip('[').strip(']').split(', ')
-            position = [float(p) for p in position]
-            self.set_work_position(position)
 
     def set_work_position(self, machine_position):
         """
@@ -229,7 +253,6 @@ class Motor:
         """
         command = f'G92 X{machine_position[0]} Y{machine_position[1]} Z{machine_position[2]}'
         self.send_command(command)
-        self.ser.readline()
 
     def get_work_position(self):
         """
@@ -238,16 +261,19 @@ class Motor:
         Returns:
             list: The work position.
         """
-        return self.status()["Work position"]
+        return self.status(verbose=False)["Work position"]
 
 class Motor_manager():
     def __init__(self, motor_list):
         self.motor_list = motor_list
 
 if __name__ == "__main__":
-    with Motor(port='/dev/tty.usbmodem11301') as motor:
-        motor.status()
-        motor.move('x', 30)
-        print(motor.get_work_position())
+    # with Motor(port='/dev/tty.usbmodem11301') as motor:
+    #     # motor.status()
+    #     # motor.move('x', 30)
+    #     # print(motor.get_work_position())
+    #     print('year=h')
 
-    print('EOF')
+    Motor(port='/dev/tty.usbmodem11301').save_position()
+
+    print('========================= END OF EXECUTION =========================')
