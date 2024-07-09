@@ -45,7 +45,7 @@ class Motor:
         self.id = id
         self.port_path = port
         self.baud_rate = baud_rate
-        self.ser = None
+        self.ser = serial.Serial(self.port_path, self.baud_rate)
         self.verbose = verbose
         self.default_feed_rate = default_feed_rate
     
